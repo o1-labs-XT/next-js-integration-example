@@ -1,101 +1,179 @@
-import Image from "next/image";
+"use client";
+import { useEffect, useRef, useState } from "react";
+
+import TodoListWorkerClient from "./todoListWorkerClient";
+import PendingTodosQueue from "@/components/PendingTodosQueue";
+import ProvenTodosQueue from "@/components/ProvenTodosQueue";
+import { type TodoObjectRepr } from "./todoListWorker";
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [todoListWorkerClient, setTodoListWorkerClient] =
+    useState<TodoListWorkerClient | null>(null);
+  const [hasBeenInitialized, setHasBeenInitialized] = useState(false);
+  const [workerIsBusy, setWorkerIsBusy] = useState(false);
+  const [todoList, setTodoList] = useState<Record<
+    number,
+    TodoObjectRepr
+  > | null>(null);
+  const [newTodo, setNewTodo] = useState("");
+  const [newTodosQueue, setNewTodosQueue] = useState<string[]>([]);
+  const [pendingCompleteTodosQueue, setPendingCompleteTodosQueue] = useState<number[]>([]);
+  const [logMessages, setLogMessages] = useState<string[]>([]);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const logContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const initializeWorker = async (worker: TodoListWorkerClient) => {
+      setLogMessages((prev) => [...prev, "Compiling zk program..."]);
+      const timeStart = Date.now();
+      await worker.init();
+      const todos = await worker.getTodos();
+      setLogMessages((prev) => [...prev, `Zk program compiled in ${Date.now() - timeStart}ms`]);
+      setTodoList(todos);
+      setHasBeenInitialized(true);
+    };
+
+    const setup = async () => {
+      setWorkerIsBusy(true);
+      if (!todoListWorkerClient) {
+        setLogMessages((prev) => [...prev, "No worker client found, creating new one..."]);
+        const workerClient = new TodoListWorkerClient();
+        setTodoListWorkerClient(workerClient);
+        setLogMessages((prev) => [...prev, "Worker client created"]);
+        await initializeWorker(workerClient);
+      } else if (!hasBeenInitialized) {
+        await initializeWorker(todoListWorkerClient);
+      }
+      setWorkerIsBusy(false);
+    };
+    setup();
+  }, []);
+
+  useEffect(() => {
+    if (logContainerRef.current) {
+      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+    }
+  }, [logMessages]);
+
+  const addTodo = async () => {
+    setNewTodosQueue([...newTodosQueue, newTodo]);
+    setLogMessages((prev) => [...prev, `Added todo to pending queue: ${newTodo.substring(0, 10)}...`]);
+    setNewTodo("");
+  };
+
+  const resolveTodosQueue = async () => {
+    setLogMessages((prev) => [...prev, "Proving pending todos queue..."]);
+    setWorkerIsBusy(true);
+    const timeStart = Date.now();
+    await todoListWorkerClient!.addTodos(newTodosQueue);
+    const todos = await todoListWorkerClient!.getTodos();
+    setTodoList(todos);
+    setWorkerIsBusy(false);
+    setLogMessages((prev) => [...prev, `Todos queue proven in ${Date.now() - timeStart}ms!`]);
+    setNewTodosQueue([]);
+  };
+
+  const completeTodo = async (index: number) => {
+    if(!todoList) return;
+
+    setLogMessages((prev) => [...prev, `Marking todo ${index} for completion...`]);
+    setPendingCompleteTodosQueue([...pendingCompleteTodosQueue, index]);
+  };
+
+  const resolveCompleteTodosQueue = async () => {
+    setLogMessages((prev) => [...prev, "Proving pending complete todos queue..."]);
+    setWorkerIsBusy(true);
+    const timeStart = Date.now();
+    await todoListWorkerClient!.completeTodos(pendingCompleteTodosQueue);
+    const todos = await todoListWorkerClient!.getTodos();
+    setTodoList(todos);
+    setWorkerIsBusy(false);
+    setLogMessages((prev) => [...prev, `Complete todos queue proven in ${Date.now() - timeStart}ms!`]);
+    setPendingCompleteTodosQueue([]);
+  };
+
+
+  return (
+    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-8 font-[family-name:var(--font-geist-sans)]">
+      <main className="flex flex-col gap-x-12 gap-y-40 row-start-2 items-center w-3/4">
+        <div className="flex flex-col gap-4 items-center justify-center text-center">
+          <h1 className="text-4xl font-bold">
+            Todo List with o1js and Next JS!
+          </h1>
+          <p>
+            This is a demo site built with o1js and Next JS. Follow along with
+            step by step instructions for how to build this site{" "}
+            <a href="#">here</a>!
+          </p>
+        </div>
+        <div className="w-full">
+          <h2 className="text-xl font-bold mb-2">Console Log</h2>
+          <div ref={logContainerRef} className="w-full max-h-40 overflow-y-auto bg-gray-100 p-4 rounded-lg">
+            <ul className="list-disc list-inside">
+              {logMessages.map((message, index) => (
+                <li key={index}>{message}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-4">
+            <div className="py-8">
+              <PendingTodosQueue
+                title="Pending Todos Queue"
+                subheading="These todo items are only represented in Javascript. Click 'Pending Todos Queue' to prove their inclusion"
+                todos={newTodosQueue}
+              />
+              <input
+                type="text"
+                className="input"
+                value={newTodo}
+                onChange={(e) => setNewTodo(e.target.value)}
+              />
+              <button onClick={addTodo} className="mx-2 btn">
+                Add Todo
+              </button>
+              <button
+                className="btn"
+                onClick={resolveTodosQueue}
+                disabled={workerIsBusy || !hasBeenInitialized}
+              >
+                Prove Pending Todos Queue
+              </button>
+            </div>
+            <div>
+              <PendingTodosQueue
+                title="Pending Complete Todos Queue"
+                subheading="These todo items marked for completion in javascript, but not yet proven.  Click 'Pending Complete Todos Queue' to prove their completion"
+                todos={pendingCompleteTodosQueue.map((index) => todoList![index].text)}
+              />
+              <button
+                className="btn"
+                onClick={resolveCompleteTodosQueue}
+                disabled={workerIsBusy || !hasBeenInitialized}
+              >
+                Prove Pending Complete Todos Queue
+              </button>
+            </div>
+          </div>
+          <div>
+            {hasBeenInitialized ? (
+              todoList !== null && (
+                <ul className="flex flex-col gap-2">
+                  <ProvenTodosQueue
+                    title="Proven Todos Queue"
+                    subheading="These todo items are represented in the current proof"
+                    todos={todoList}
+                    completeTodo={completeTodo}
+                  />
+                </ul>
+              )
+            ) : (
+              <div>Waiting for zk circuit to compile...</div>
+            )}
+          </div>
         </div>
       </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
     </div>
   );
 }
