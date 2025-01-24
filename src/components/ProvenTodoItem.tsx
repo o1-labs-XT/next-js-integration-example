@@ -13,7 +13,9 @@ export default function ProvenTodoItem({ todo, index, completeTodo }: { todo: To
                 <p>{index}</p>
             </div>
             <div className="flex-1 text-right">
-                <button className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-2 rounded" onClick={() => completeTodo(index)}>Complete</button>
+                {todo.status ? (
+                    <p>Already complete!</p>
+                ) : (<button className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-2 rounded" onClick={() => completeTodo(index)}>Complete</button>)}
             </div>
         </li>
     );
