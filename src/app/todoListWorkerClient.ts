@@ -30,8 +30,4 @@ export default class TodoListWorkerClient {
   async getTodos() {
     return await this.remoteApi.getTodos();
   }
-
-  async getProvable() {
-    return await this.remoteApi.getProvable();
-  }
 }

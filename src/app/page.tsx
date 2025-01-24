@@ -47,7 +47,7 @@ export default function Home() {
       setWorkerIsBusy(false);
     };
     setup();
-  }, []);
+  }, [hasBeenInitialized, todoListWorkerClient]);
 
   useEffect(() => {
     if (logContainerRef.current) {
