@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: "export", // <=== enables static exports
+  reactStrictMode: true,
   // To enable o1js for the web, we must set the COOP and COEP headers.
   // See here for more information: https://docs.minaprotocol.com/zkapps/how-to-write-a-zkapp-ui#enabling-coop-and-coep-headers
   async headers() {
