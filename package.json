@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "compileZkProgram": "npx tsx src/lib/cacheUtils/compileToCache.ts && npx tsx src/lib/cacheUtils/compileToCache.ts",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
