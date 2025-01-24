@@ -1,4 +1,3 @@
-import { TodoObjectRepr } from "@/app/todoListWorker";
 import PendingTodoItem from "./PendingTodoItem";
 
 export default function TodosQueue({ title, subheading, todos }: { title: string, subheading: string, todos: Array<string> }) {

@@ -40,7 +40,6 @@ export const api = {
         text: CircuitString.fromString(text),
         status: Bool(false),
       });
-      console.log("Test serialized todo", todo.text.toString());
       const index = Field(state.index + 1);
       const proof = await ZkTodoList.addTodo(state.proof, index, todo);
       state.merkleMap = proof.proof.publicOutput;
@@ -58,10 +57,7 @@ export const api = {
       const todoHash = state.merkleMap.get(Field(index));
 
       console.log("Completing todo", index, todoHash);
-      // if (todoHash === Field(0)) {
-      //   throw new Error("Todo not found");
-      // }
-    } catch (e) {
+    } catch {
       throw new Error("Todo not found");
     }
 
@@ -103,12 +99,6 @@ export const api = {
   },
   getTodos() {
     return state.objectRepr;
-  },
-  getProvable() {
-    return {
-      merkleMap: state.merkleMap,
-      proof: state.proof,
-    };
   },
 };
 
